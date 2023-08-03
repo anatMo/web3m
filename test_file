@@ -1,0 +1,130 @@
+# import os
+# from dotenv import load_dotenv
+# from flask import Flask, render_template, request, redirect, url_for, jsonify
+# from datetime import datetime, timedelta
+# from elasticsearch import Elasticsearch
+# import requests
+
+# # Load environment variables from .env file
+# load_dotenv()
+
+# app = Flask(__name__)
+
+# # Hard-coded user and password
+# USERNAME = 'crypto_whale'
+# PASSWORD = 'js*gnHfcx!'
+
+# # Read Elasticsearch credentials from environment variables
+# ELASTICSEARCH_USERNAME = os.environ.get('ELASTICSEARCH_USERNAME')
+# ELASTICSEARCH_PASSWORD = os.environ.get('ELASTICSEARCH_PASSWORD')
+# ELASTICSEARCH_HOST = os.environ.get('ELASTICSEARCH_HOST', 'http://localhost:9200')
+
+# # # Elasticsearch connection
+# # es = Elasticsearch(
+# #     [ELASTICSEARCH_HOST],
+# #     basic_auth=(ELASTICSEARCH_USERNAME, ELASTICSEARCH_PASSWORD)
+# # )
+
+# now = datetime.now()
+# start = now - timedelta(days=30)
+# timestamp_s = int(start.timestamp())
+# timestamp_e = int(now.timestamp())
+# print(f"start date: {timestamp_s}")
+# print(f"end date: {timestamp_e}")
+
+# es = Elasticsearch(
+#     cloud_id="My_deployment:dXMtY2VudHJhbDEuZ2NwLmNsb3VkLmVzLmlvJGVkMmJiZWRiYTQyOTQwOTBhODJmOTZjMGRmZGY3ZWUwJDZkZTIyMjA1YzE1NDQ5YjBiZDVhN2FjZjAwMDBlYzEx",
+#     basic_auth=("elastic", "dafyA4SGNygnhKuoJCDszz5j")
+# )
+
+
+# ETHERSCAN_API_KEY = "WXAK8JUP9YUEXMTKI35IXQ62S29PRMA2WU"
+# ADDRESS = "0xb47e3cd837dDF8e4c57F05d70Ab865de6e193BBB"
+
+# @app.route('/')
+# def login_page():
+#     return render_template('login.html', error=None)
+
+# # Login page
+# @app.route('/login', methods=['POST'])
+# def login():
+#     username = request.form['username']
+#     password = request.form['password']
+
+#     if username == USERNAME and password == PASSWORD:
+#         return redirect(url_for('tools_page'))
+#     else:
+#         return render_template('login.html', error='Invalid credentials.')
+
+#  # Tools page
+# @app.route('/tools')
+# def tools_page():
+#     return render_template('tools.html')
+
+
+# # Save Data to Elasticsearch
+# @app.route('/save_data', methods=['POST'])
+# def save_data():
+#     title = request.form['title']
+#     content = request.form['content']
+
+#     # Prepare data to save in Elasticsearch
+#     data = {
+#         'title': title,
+#         'content': content,
+#     }
+
+#     # Index the document in Elasticsearch
+#     index_name = 't1'
+#     document_id = str(hash(title + content))  # Use a unique document ID
+#     print(document_id)
+#     es.index(index=index_name, id=document_id, document=data)
+
+#     return redirect(url_for('tools_page'))
+
+# # Retrieve Data from Elasticsearch
+# @app.route('/retrieve_data', methods=['GET'])
+# def retrieve_data():
+#     document_id = request.args.get('document_id')
+
+#     # Retrieve the document from Elasticsearch
+#     index_name = 't1'
+#     try:
+#         result = es.get(index=index_name, id=document_id)
+#         retrieved_data = result['_source']
+#         return render_template('tools.html', retrieved_data=retrieved_data)
+#     except Exception as e:
+#         # Handle errors, such as when the document with the given ID doesn't exist
+#         return render_template('tools.html', error='Document not found')
+
+# @app.route('/gas_fee_last_90_days', methods=['GET'])
+# def get_gas_fee_last_90_days():
+#     # Construct the URL for the Etherscan API request
+#     base_url = "https://api.etherscan.io/api"
+#     endpoint = "/gastracker"
+#     params = {
+#         "module": "gastracker",
+#         "action": "gasoracle",
+#         "address": ADDRESS,
+#         "apikey": ETHERSCAN_API_KEY
+#     }
+    
+#     # Make the API request
+#     response = requests.get(base_url + endpoint, params=params)
+
+#     if response.status_code == 200:
+#         data = response.json()
+#         gas_prices = data.get("result", {})
+#         return jsonify(gas_prices)
+#     else:
+#         return jsonify({"error": "Failed to fetch data from Etherscan API."}), 500
+
+
+
+
+
+
+
+
+# if __name__ == '__main__':
+#     app.run(host='localhost', port=5000, debug=True)

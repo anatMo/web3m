@@ -1,26 +1,58 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Tools Page</title>
+    <title>Tools Page</title>
 </head>
 <body>
-  <h1>Tools Page</h1>
-  <form action="{{ url_for('save_data') }}" method="post">
-    <input type="text" name="title" placeholder="Title" required><br>
-    <textarea name="content" placeholder="Content" required></textarea><br>
-    <button type="submit">Save Data</button>
-  </form>
-  <br>
-  <form action="{{ url_for('retrieve_data') }}" method="get">
-    <input type="text" name="document_id" placeholder="Enter Document ID" required><br>
-    <button type="submit">Retrieve Data</button>
-  </form>
-  <div>
-    {% if retrieved_data %}
-    <h2>Retrieved Data</h2>
-    <p><strong>Title:</strong> {{ retrieved_data.title }}</p>
-    <p><strong>Content:</strong> {{ retrieved_data.content }}</p>
-    {% endif %}
-  </div>
+    <h1>Choose an address:</h1>
+    <form id="addressForm">
+        <input type="radio" name="address" value="0xb47e3cd837dDF8e4c57F05d70Ab865de6e193BBB">0xb47e3cd837dDF8e4c57F05d70Ab865de6e193BBB<br>
+        <input type="radio" name="address" value="0x60e4d786628fea6478f785a6d7e704777c86a7c6">0x60e4d786628fea6478f785a6d7e704777c86a7c6<br>
+        <input type="button" value="Get Info" onclick="getInfo()">
+    </form>
+
+    <div id="resultContainer">
+        <!-- The results will be shown here -->
+    </div>
+
+    <script>
+        function getInfo() {
+            var selectedAddress = document.querySelector('input[name="address"]:checked').value;
+            fetch('/get_info', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    address: selectedAddress
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                var resultContainer = document.getElementById('resultContainer');
+                resultContainer.innerHTML = '';
+
+                if (data.status === 'success') {
+                    var resultList = data.result;
+                    if (resultList.length > 0) {
+                        var resultHTML = '<h2>Transaction Results:</h2>';
+                        resultHTML += '<ul>';
+                        resultList.forEach(function(item) {
+                            resultHTML += '<li>Block Number: ' + item.blockNumber + ', TimeStamp: ' + item.timeStamp + ', Gas Fee (USD): ' + item.gasFeeUSD.toFixed(4) + '</li>';
+                        });
+                        resultHTML += '</ul>';
+                        resultContainer.innerHTML = resultHTML;
+                    } else {
+                        resultContainer.innerHTML = '<p>No transactions found.</p>';
+                    }
+                } else {
+                    resultContainer.innerHTML = '<p>Error: ' + data.message + '</p>';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+    </script>
 </body>
 </html>

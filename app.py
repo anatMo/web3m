@@ -1,40 +1,33 @@
 import os
-from dotenv import load_dotenv
-from flask import Flask, render_template, request, redirect, url_for
+import json
+from flask import Flask, render_template, request, redirect, url_for, jsonify
+from datetime import datetime, timedelta
 from elasticsearch import Elasticsearch
 import requests
 
-# Load environment variables from .env file
-load_dotenv()
-
 app = Flask(__name__)
 
-# Hard-coded user and password
+# Constants
 USERNAME = 'crypto_whale'
 PASSWORD = 'js*gnHfcx!'
+ETHERSCAN_API_KEY = 'WXAK8JUP9YUEXMTKI35IXQ62S29PRMA2WU'
+COINGECKO_API_URL = 'https://api.coingecko.com/api/v3/simple/price'
+COINGECKO_CURRENCY = 'usd'
+ES_CLOUD_ID = 'My_deployment:dXMtY2VudHJhbDEuZ2NwLmNsb3VkLmVzLmlvJGVkMmJiZWRiYTQyOTQwOTBhODJmOTZjMGRmZGY3ZWUwJDZkZTIyMjA1YzE1NDQ5YjBiZDVhN2FjZjAwMDBlYzEx'
+ES_USER = 'elastic'
+ES_PASSWORD = 'dafyA4SGNygnhKuoJCDszz5j'
 
-# Read Elasticsearch credentials from environment variables
-ELASTICSEARCH_USERNAME = os.environ.get('ELASTICSEARCH_USERNAME')
-ELASTICSEARCH_PASSWORD = os.environ.get('ELASTICSEARCH_PASSWORD')
-ELASTICSEARCH_HOST = os.environ.get('ELASTICSEARCH_HOST', 'http://localhost:9200')
-
-# # Elasticsearch connection
-# es = Elasticsearch(
-#     [ELASTICSEARCH_HOST],
-#     basic_auth=(ELASTICSEARCH_USERNAME, ELASTICSEARCH_PASSWORD)
-# )
-
+# Initialize Elasticsearch client
 es = Elasticsearch(
-    cloud_id="My_deployment:dXMtY2VudHJhbDEuZ2NwLmNsb3VkLmVzLmlvJGVkMmJiZWRiYTQyOTQwOTBhODJmOTZjMGRmZGY3ZWUwJDZkZTIyMjA1YzE1NDQ5YjBiZDVhN2FjZjAwMDBlYzEx",
-    basic_auth=("elastic", "dafyA4SGNygnhKuoJCDszz5j")
+    cloud_id=ES_CLOUD_ID,
+    basic_auth=(ES_USER, ES_PASSWORD)
 )
 
-
-print("connected")
 
 @app.route('/')
 def login_page():
     return render_template('login.html', error=None)
+
 
 # Login page
 @app.route('/login', methods=['POST'])
@@ -47,103 +40,83 @@ def login():
     else:
         return render_template('login.html', error='Invalid credentials.')
 
- # Tools page
+
+# Tools page
 @app.route('/tools')
 def tools_page():
     return render_template('tools.html')
 
 
-# Save Data to Elasticsearch
-@app.route('/save_data', methods=['POST'])
-def save_data():
-    title = request.form['title']
-    content = request.form['content']
-
-    # Prepare data to save in Elasticsearch
-    data = {
-        'title': title,
-        'content': content,
-    }
-
-    # Index the document in Elasticsearch
-    index_name = 't1'
-    document_id = str(hash(title + content))  # Use a unique document ID
-    print(document_id)
-    es.index(index=index_name, id=document_id, document=data)
-
-    return redirect(url_for('tools_page'))
-
-# Retrieve Data from Elasticsearch
-@app.route('/retrieve_data', methods=['GET'])
-def retrieve_data():
-    document_id = request.args.get('document_id')
-
-    # Retrieve the document from Elasticsearch
-    index_name = 't1'
+# Function to get the real gas price in USD using CoinGecko API
+def get_real_gas_price():
     try:
-        result = es.get(index=index_name, id=document_id)
-        retrieved_data = result['_source']
-        return render_template('tools.html', retrieved_data=retrieved_data)
-    except Exception as e:
-        # Handle errors, such as when the document with the given ID doesn't exist
-        return render_template('tools.html', error='Document not found')
+        response = requests.get(f"{COINGECKO_API_URL}?ids=ethereum&vs_currencies={COINGECKO_CURRENCY}")
+        response.raise_for_status()
+        data = response.json()
+        return data.get('ethereum', {}).get(COINGECKO_CURRENCY)
+    except requests.exceptions.RequestException as e:
+        print("Error fetching gas price:", e)
+        return None
 
-# # Function to connect to Elasticsearch via Kibana
-# def connect_to_elasticsearch(method, path, data=None):
-#     base_url = 'http://localhost:5601'  # Kibana URL
-#     auth = ('your_kibana_username', 'your_kibana_password')  # Kibana credentials
 
-#     url = f'{base_url}/api/console/proxy?method={method}&path={path}'
+# Get transaction data and save to Elasticsearch
+def process_transactions(address, gas_price_wei, gas_price_usd):
+    now = int(datetime.now().timestamp())
+    thirty_days_ago = int((datetime.now() - timedelta(days=30)).timestamp())
 
-#     if method == 'GET':
-#         response = requests.get(url, auth=auth)
-#     elif method == 'POST':
-#         headers = {'Content-Type': 'application/json'}
-#         response = requests.post(url, headers=headers, json=data, auth=auth)
-#     else:
-#         # Add more HTTP methods if needed (e.g., PUT, DELETE)
-#         return None
+    # Get block numbers
+    url = f"https://api.etherscan.io/api?module=block&action=getblocknobytime&timestamp={now}&closest=after&apikey={ETHERSCAN_API_KEY}"
+    response_now = requests.get(url).json()
+    result_now = response_now['result']
 
-#     return response
+    url = f"https://api.etherscan.io/api?module=block&action=getblocknobytime&timestamp={thirty_days_ago}&closest=after&apikey={ETHERSCAN_API_KEY}"
+    response_30_days_ago = requests.get(url).json()
+    result_30_days_ago = response_30_days_ago['result']
 
-# # Save Data to Elasticsearch via Kibana
-# @app.route('/save_data', methods=['POST'])
-# def save_data():
-#     title = request.form['title']
-#     content = request.form['content']
+    # Get transactions list
+    url = f"https://api.etherscan.io/api?module=account&action=txlist&address={address}&startblock={result_now}&endblock={result_30_days_ago}&page=1&offset=2000&sort=asc&apikey={ETHERSCAN_API_KEY}"
+    response_transactions = requests.get(url).json()
+    result_transactions = response_transactions['result']
 
-#     # Prepare data to save in Elasticsearch
-#     data = {
-#         'title': title,
-#         'content': content,
-#     }
+    # Calculate gas fee for each transaction and create the data to save in Elasticsearch
+    data_to_save = []
+    for tx in result_transactions:
+        gas_used = int(tx['gasUsed'])
+        gas_fee_wei = gas_price_wei * gas_used
+        gas_fee_eth = gas_fee_wei / 10 ** 18
+        gas_fee_usd = round(gas_fee_eth * gas_price_usd, 4)  # Calculate gas fee in USD and round to 4 decimal places
 
-#     # Index the document in Elasticsearch via Kibana
-#     index_name = 't1'
-#     document_id = str(hash(title + content))  # Use a unique document ID
+        tx_data = {
+            'blockNumber': tx['blockNumber'],
+            'timeStamp': tx['timeStamp'],
+            'gasFeeUSD': gas_fee_usd  # Add the gas fee in USD to the transaction data
+        }
 
-#     response = connect_to_elasticsearch('POST', f'/{index_name}/_doc/{document_id}', data=data)
+        data_to_save.append(tx_data)
 
-#     # Check the response status code and handle accordingly
-#     if response and response.status_code == 200:
-#         return redirect(url_for('tools_page'))
-#     else:
-#         return render_template('tools.html', error='Failed to save data.')
+    # Save the data_to_save to Elasticsearch with the index as the contract address
+    # es.index(index=address.lower(), doc_type='transaction', body=json.dumps(data_to_save))
 
-# # Retrieve Data from Elasticsearch via Kibana
-# @app.route('/retrieve_data', methods=['GET'])
-# def retrieve_data():
-#     document_id = request.args.get('document_id')
+    return data_to_save
 
-#     # Retrieve the document from Elasticsearch via Kibana
-#     response = connect_to_elasticsearch('GET', f'/t1/_doc/{document_id}')
 
-#     # Check the response status code and handle accordingly
-#     if response and response.status_code == 200:
-#         retrieved_data = response.json()
-#         return render_template('tools.html', retrieved_data=retrieved_data)
-#     else:
-#         return render_template('tools.html', error='Document not found')
+@app.route('/get_info', methods=['POST'])
+def get_info():
+    address = request.json.get('address')
+
+    # Get the real gas price in USD
+    gas_price_usd = get_real_gas_price()
+
+    if gas_price_usd is None:
+        return jsonify({'status': 'error', 'message': 'Failed to fetch gas price.'})
+
+    # Get the real gas price in Wei
+    gas_price_wei = int(1 / gas_price_usd * 10 ** 9)
+
+    # Process transactions and get data to display
+    transaction_data = process_transactions(address, gas_price_wei, gas_price_usd)
+
+    return jsonify({'status': 'success', 'result': transaction_data})
 
 if __name__ == '__main__':
     app.run(host='localhost', port=5000, debug=True)
