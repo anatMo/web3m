@@ -2,7 +2,7 @@ import os
 import json
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 from datetime import datetime, timedelta
-from elasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch, helpers
 import requests
 
 app = Flask(__name__)
@@ -47,16 +47,24 @@ def tools_page():
     return render_template('tools.html')
 
 
-# Function to get the real gas price in USD using CoinGecko API
+# Function to get the real gas price in USD using Eth CoinGecko API
 def get_real_gas_price():
     try:
-        response = requests.get(f"{COINGECKO_API_URL}?ids=ethereum&vs_currencies={COINGECKO_CURRENCY}")
+        response = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd")
         response.raise_for_status()
         data = response.json()
-        return data.get('ethereum', {}).get(COINGECKO_CURRENCY)
-    except requests.exceptions.RequestException as e:
-        print("Error fetching gas price:", e)
-        return None
+        gas_price_usd = float(data['ethereum']['usd'])
+        gas_price_wei = int(gas_price_usd * 10**9)  # Convert USD to Wei (1 ETH = 1e9 Gwei)
+        return gas_price_wei, gas_price_usd
+    except requests.exceptions.HTTPError as http_err:
+        print(f"HTTP error occurred: {http_err}")
+        return None, None
+    except requests.exceptions.RequestException as req_err:
+        print(f"Request exception occurred: {req_err}")
+        return None, None
+    except ValueError as json_err:
+        print(f"Error parsing JSON: {json_err}")
+        return None, None
 
 
 # Get transaction data and save to Elasticsearch
@@ -74,15 +82,18 @@ def process_transactions(address, gas_price_wei, gas_price_usd):
     result_30_days_ago = response_30_days_ago['result']
 
     # Get transactions list
-    url = f"https://api.etherscan.io/api?module=account&action=txlist&address={address}&startblock={result_now}&endblock={result_30_days_ago}&page=1&offset=2000&sort=asc&apikey={ETHERSCAN_API_KEY}"
+    url = f"https://api.etherscan.io/api?module=account&action=txlist&address={address}&startblock={result_now}&endblock={result_30_days_ago}&page=1&offset=4000&sort=asc&apikey={ETHERSCAN_API_KEY}"
     response_transactions = requests.get(url).json()
-    result_transactions = response_transactions['result']
+    result_transactions = response_transactions.get('result', [])
 
     # Calculate gas fee for each transaction and create the data to save in Elasticsearch
     data_to_save = []
     for tx in result_transactions:
+        if 'gasUsed' not in tx:
+            continue
+
         gas_used = int(tx['gasUsed'])
-        gas_fee_wei = gas_price_wei * gas_used
+        gas_fee_wei = int(tx['gasPrice']) * gas_used
         gas_fee_eth = gas_fee_wei / 10 ** 18
         gas_fee_usd = round(gas_fee_eth * gas_price_usd, 4)  # Calculate gas fee in USD and round to 4 decimal places
 
@@ -94,29 +105,56 @@ def process_transactions(address, gas_price_wei, gas_price_usd):
 
         data_to_save.append(tx_data)
 
-    # Save the data_to_save to Elasticsearch with the index as the contract address
-    # es.index(index=address.lower(), doc_type='transaction', body=json.dumps(data_to_save))
-
     return data_to_save
+
+def get_gas_price_usd():
+    try:
+        url = f"https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd"
+        response = requests.get(url)
+        data = response.json()
+        return data.get('ethereum', {}).get('usd', 0.0)
+    except Exception as e:
+        print("Error fetching gas price:", str(e))
+        return 0.0
+    
+
+def save_to_elasticsearch(data, address):
+    # Index the data in Elasticsearch using bulk indexing
+    actions = [
+        {
+            '_index': address.lower(),
+            '_source': item
+        }
+        for item in data
+    ]
+    helpers.bulk(es, actions)
 
 
 @app.route('/get_info', methods=['POST'])
 def get_info():
-    address = request.json.get('address')
+    address = request.json['address']
+    gas_price_wei, gas_price_usd = get_real_gas_price()
+    if gas_price_wei is None or gas_price_usd is None:
+        return jsonify({'status': 'error', 'message': 'Failed to fetch gas price'})
 
-    # Get the real gas price in USD
-    gas_price_usd = get_real_gas_price()
-
-    if gas_price_usd is None:
-        return jsonify({'status': 'error', 'message': 'Failed to fetch gas price.'})
-
-    # Get the real gas price in Wei
-    gas_price_wei = int(1 / gas_price_usd * 10 ** 9)
-
-    # Process transactions and get data to display
     transaction_data = process_transactions(address, gas_price_wei, gas_price_usd)
-
+    print(transaction_data)
+    print(len(transaction_data))
+    save_to_elasticsearch(transaction_data, address)
     return jsonify({'status': 'success', 'result': transaction_data})
+
+@app.route('/delete_data', methods=['DELETE'])
+def delete_data():
+    index_name = request.args.get('index')
+    
+    if not index_name:
+        return jsonify({'status': 'error', 'message': 'Index name missing in the request parameters.'}), 400
+
+    try:
+        response = es.indices.delete(index=index_name)
+        return jsonify({'status': 'success', 'message': f'Data with index {index_name} has been deleted.'}), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'Failed to delete data with index {index_name}: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(host='localhost', port=5000, debug=True)

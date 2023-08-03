@@ -35,7 +35,7 @@
                 if (data.status === 'success') {
                     var resultList = data.result;
                     if (resultList.length > 0) {
-                        var resultHTML = '<h2>Transaction Results:</h2>';
+                        var resultHTML = '<h2>Contract Data:</h2>';
                         resultHTML += '<ul>';
                         resultList.forEach(function(item) {
                             resultHTML += '<li>Block Number: ' + item.blockNumber + ', TimeStamp: ' + item.timeStamp + ', Gas Fee (USD): ' + item.gasFeeUSD.toFixed(4) + '</li>';
