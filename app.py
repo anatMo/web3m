@@ -122,7 +122,7 @@ def save_to_elasticsearch(data, address):
     # Index the data in Elasticsearch using bulk indexing
     actions = [
         {
-            '_index': address.lower(),
+            '_index': address.lower(),  # Convert the address to lowercase for the index name
             '_source': item
         }
         for item in data
@@ -132,7 +132,11 @@ def save_to_elasticsearch(data, address):
 
 @app.route('/get_info', methods=['POST'])
 def get_info():
-    address = request.json['address']
+    data = request.get_json()  # Get JSON data from the request body
+    if not data or 'address' not in data:
+        return jsonify({'status': 'error', 'message': 'Address missing in the request data.'}), 400
+
+    address = data['address'].strip().lower()  # Convert the address to lowercase
     gas_price_wei, gas_price_usd = get_real_gas_price()
     if gas_price_wei is None or gas_price_usd is None:
         return jsonify({'status': 'error', 'message': 'Failed to fetch gas price'})
@@ -142,6 +146,7 @@ def get_info():
     print(len(transaction_data))
     save_to_elasticsearch(transaction_data, address)
     return jsonify({'status': 'success', 'result': transaction_data})
+
 
 @app.route('/delete_data', methods=['DELETE'])
 def delete_data():

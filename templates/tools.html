@@ -4,11 +4,10 @@
     <title>Tools Page</title>
 </head>
 <body>
-    <h1>Choose an address:</h1>
+    <h1>Enter a contract address:</h1>
     <form id="addressForm">
-        <input type="radio" name="address" value="0xb47e3cd837dDF8e4c57F05d70Ab865de6e193BBB">0xb47e3cd837dDF8e4c57F05d70Ab865de6e193BBB<br>
-        <input type="radio" name="address" value="0x60e4d786628fea6478f785a6d7e704777c86a7c6">0x60e4d786628fea6478f785a6d7e704777c86a7c6<br>
-        <input type="button" value="Get Info" onclick="getInfo()">
+        <input type="text" id="contractAddress" placeholder="Enter a contract address in uppercase">
+        <input type="button" value="Get Data" onclick="getInfo()">
     </form>
 
     <div id="resultContainer">
@@ -17,7 +16,8 @@
 
     <script>
         function getInfo() {
-            var selectedAddress = document.querySelector('input[name="address"]:checked').value;
+            var inputAddress = document.getElementById('contractAddress').value;
+            var selectedAddress = inputAddress.trim().toLowerCase(); // Convert to lowercase
             fetch('/get_info', {
                 method: 'POST',
                 headers: {
