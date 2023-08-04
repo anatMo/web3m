@@ -8,10 +8,10 @@
 </head>
 <body>
     <div class="tools-container">
-        <h1>Enter a contract address:</h1>
+        <h1>Hourly Average Gas Fee (USD) over 30 Days</h1>
         <form id="addressForm">
-            <input type="text" id="contractAddress" placeholder="Enter a contract address in uppercase">
-            <label for="selectDay">Select a day:</label>
+            <input type="text" id="contractAddress" placeholder="Enter a contract address">
+            <label for="selectDay">Select a date:</label>
             <select id="selectDay">
                <!-- The dropdown will be shown here --> 
             </select>
@@ -39,7 +39,7 @@
             return selectedDayString;
         }
 
-        // Function to populate the dropdown
+        // Function called in any fatch of this page
         populateDaysDropdown();
 
         // Function to populate the dropdown with the last 30 days
@@ -61,7 +61,7 @@
         // Function to fetch data and update the chart
         function getInfo() {
             var inputAddress = document.getElementById('contractAddress').value;
-            var selectedAddress = inputAddress.trim().toLowerCase(); // Convert to lowercase
+            var selectedAddress = inputAddress.trim().toLowerCase(); // Convert to lowercase for index
             var selectedDay = getSelectedDay();
 
             fetch('/get_info', {
@@ -92,7 +92,6 @@
                             resultHTML += '<li>Block Number: ' + item.blockNumber + ', TimeStamp: ' + item.timeStamp + ', Gas Fee (USD): ' + item.gasFeeUSD.toFixed(4) + '</li>';
                         });
                         resultHTML += '</ul>';
-                        // resultContainer.innerHTML = resultHTML;
 
                         // Show the chart container
                         chartContainer.style.display = 'block';
@@ -118,13 +117,13 @@
                     type: 'line'
                 },
                 title: {
-                    text: 'Hourly Average Gas Fee (USD) over 30 Days'
+                    text: 'Hourly Average Gas Fee (USD) over chosen date'
                 },
                 xAxis: {
                     title: {
                         text: 'Hour of the Day'
                     },
-                    categories: hourlyAverages.map(item => item[0]), // Use the hour as the category
+                    categories: hourlyAverages.map(item => item[0]), // Used the hour as the category
                     labels: {
                         rotation: 90
                     }
@@ -136,7 +135,7 @@
                 },
                 series: [{
                     name: 'Gas Fee (USD)',
-                    data: hourlyAverages.map(item => item[1]) // Use the gas fee as the data
+                    data: hourlyAverages.map(item => item[1]) // Used the gas fee as the data
                 }]
             };
 
