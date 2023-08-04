@@ -2,35 +2,89 @@
 <html>
 <head>
     <title>Tools Page</title>
+    <!-- Add the Highcharts CDN -->
+    <script src="https://code.highcharts.com/highcharts.js"></script>
 </head>
 <body>
     <h1>Enter a contract address:</h1>
     <form id="addressForm">
         <input type="text" id="contractAddress" placeholder="Enter a contract address in uppercase">
+        <label for="selectDay">Select a day:</label>
+        <select id="selectDay">
+            <!-- Options for 30 days -->
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+            <option value="10">10</option>
+            <option value="11">11</option>
+            <option value="12">12</option>
+            <option value="13">13</option>
+            <option value="14">14</option>
+            <option value="15">15</option>
+            <option value="16">16</option>
+            <option value="17">17</option>
+            <option value="18">18</option>
+            <option value="19">19</option>
+            <option value="20">20</option>
+            <option value="21">21</option>
+            <option value="22">22</option>
+            <option value="23">23</option>
+            <option value="24">24</option>
+            <option value="25">25</option>
+            <option value="26">26</option>
+            <option value="27">27</option>
+            <option value="28">28</option>
+            <option value="29">29</option>
+            <option value="30">30</option>
+        </select>
         <input type="button" value="Get Data" onclick="getInfo()">
     </form>
+
+    <div id="chartContainer" style="display: none;">
+        <!-- The chart will be shown here -->
+    </div>
 
     <div id="resultContainer">
         <!-- The results will be shown here -->
     </div>
 
     <script>
+        // Function to get the selected day
+        function getSelectedDay() {
+            var selectedDay = document.getElementById('selectDay').value;
+            return selectedDay;
+        }
+
+        // Function to fetch data and update the chart
         function getInfo() {
             var inputAddress = document.getElementById('contractAddress').value;
             var selectedAddress = inputAddress.trim().toLowerCase(); // Convert to lowercase
+            var selectedDay = getSelectedDay();
+
             fetch('/get_info', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    address: selectedAddress
+                    address: selectedAddress,
+                    selectedDay: selectedDay
                 })
             })
             .then(response => response.json())
             .then(data => {
                 var resultContainer = document.getElementById('resultContainer');
+                var chartContainer = document.getElementById('chartContainer');
+
+                // Clear previous content
                 resultContainer.innerHTML = '';
+                chartContainer.style.display = 'none';
 
                 if (data.status === 'success') {
                     var resultList = data.result;
@@ -42,6 +96,12 @@
                         });
                         resultHTML += '</ul>';
                         resultContainer.innerHTML = resultHTML;
+
+                        // Show the chart container
+                        chartContainer.style.display = 'block';
+
+                        // Create or update the chart
+                        createChart(data.hourly_averages);
                     } else {
                         resultContainer.innerHTML = '<p>No transactions found.</p>';
                     }
@@ -52,6 +112,39 @@
             .catch(error => {
                 console.error('Error:', error);
             });
+        }
+
+        // Function to create and update the chart
+        function createChart(hourlyAverages) {
+            var chartOptions = {
+                chart: {
+                    type: 'line'
+                },
+                title: {
+                    text: 'Hourly Average Gas Fee (USD) over 30 Days'
+                },
+                xAxis: {
+                    title: {
+                        text: 'Hour of the Day'
+                    },
+                    categories: hourlyAverages.map(item => item[0]), // Use the hour as the category
+                    labels: {
+                        rotation: 90
+                    }
+                },
+                yAxis: {
+                    title: {
+                        text: 'Gas Fee (USD)'
+                    }
+                },
+                series: [{
+                    name: 'Gas Fee (USD)',
+                    data: hourlyAverages.map(item => item[1]) // Use the gas fee as the data
+                }]
+            };
+
+            // Create the chart and show it
+            Highcharts.chart('chartContainer', chartOptions);
         }
     </script>
 </body>

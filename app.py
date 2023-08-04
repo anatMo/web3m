@@ -124,6 +124,22 @@ def get_gas_price_usd():
         print("Error fetching gas price:", str(e))
         return 0.0
     
+def calculate_hourly_average(data):
+    hourly_data = {}
+    for tx in data:
+        timestamp = int(tx['timeStamp'])
+        hour = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:00')
+        gas_fee = tx['gasFeeUSD']
+        if hour not in hourly_data:
+            hourly_data[hour] = []
+        hourly_data[hour].append(gas_fee)
+
+    hourly_averages = []
+    for hour, fees in hourly_data.items():
+        average_fee = sum(fees) / len(fees)
+        hourly_averages.append([hour, round(average_fee, 4)])
+
+    return hourly_averages
 
 def save_to_elasticsearch(data, address):
     # Index the data in Elasticsearch using bulk indexing
@@ -140,27 +156,55 @@ def save_to_elasticsearch(data, address):
 @app.route('/get_info', methods=['POST'])
 def get_info():
     data = request.get_json()  # Get JSON data from the request body
-    if not data or 'address' not in data:
-        return jsonify({'status': 'error', 'message': 'Address missing in the request data.'}), 400
+    if not data or 'address' not in data or 'selectedDay' not in data:
+        return jsonify({'status': 'error', 'message': 'Address or selectedDay missing in the request data.'}), 400
 
     address = data['address'].strip().lower()  # Convert the address to lowercase
+    selected_day_index = int(data['selectedDay'])
+
+    # Calculate the timestamps for the last 30 days
+    dates = get_last_30_days()
+    selected_day = dates[selected_day_index]
+
+    # Calculate the timestamp for the selected day (00:00:00)
+    selected_day_timestamp = int(datetime.strptime(selected_day, '%Y-%m-%d').timestamp())
+
+    # Calculate the timestamp for the day after the selected day (00:00:00)
+    next_day_timestamp = int((datetime.strptime(selected_day, '%Y-%m-%d') + timedelta(days=1)).timestamp())
 
     # Check if the index (address) exists in Elasticsearch
     if es.indices.exists(index=address):
         # If the index exists, retrieve the data from Elasticsearch
         response = es.search(index=address, size=10000)  # Fetch 10,000 records (you can adjust this number)
         transaction_data = [hit['_source'] for hit in response['hits']['hits']]
-        return jsonify({'status': 'success', 'result': transaction_data})
 
-    # If the index does not exist, proceed to fetch data and save it
-    gas_price_wei, gas_price_usd = get_real_gas_price()
-    if gas_price_wei is None or gas_price_usd is None:
-        return jsonify({'status': 'error', 'message': 'Failed to fetch gas price'})
+        # Filter the data for the selected day
+        selected_day_data = [tx for tx in transaction_data if int(tx['timeStamp']) >= selected_day_timestamp and int(tx['timeStamp']) < next_day_timestamp]
 
-    transaction_data = process_transactions(address, gas_price_wei, gas_price_usd)
-    save_to_elasticsearch(transaction_data, address)
-    return jsonify({'status': 'success', 'result': transaction_data})
+        # Calculate the hourly averages for the selected day
+        hourly_averages = calculate_hourly_average(selected_day_data)
 
+        return jsonify({'status': 'success', 'result': selected_day_data, 'hourly_averages': hourly_averages, 'days': dates})
+    else:
+        # If the index does not exist, proceed to fetch data and save it
+        gas_price_wei, gas_price_usd = get_real_gas_price()
+        if gas_price_wei is None or gas_price_usd is None:
+            return jsonify({'status': 'error', 'message': 'Failed to fetch gas price'})
+
+        transaction_data = process_transactions(address, gas_price_wei, gas_price_usd)
+        save_to_elasticsearch(transaction_data, address)
+
+        # Filter the data for the selected day
+        selected_day_data = [tx for tx in transaction_data if int(tx['timeStamp']) >= selected_day_timestamp and int(tx['timeStamp']) < next_day_timestamp]
+        hourly_averages = calculate_hourly_average(selected_day_data)
+
+        return jsonify({'status': 'success', 'result': selected_day_data, 'hourly_averages': hourly_averages, 'days': dates})
+
+
+def get_last_30_days():
+    now = datetime.now()
+    dates = [(now - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(30)]
+    return dates
 
 @app.route('/delete_data', methods=['DELETE'])
 def delete_data():
