@@ -31,11 +31,15 @@
     <script>
         // Function to get the selected day
         function getSelectedDay() {
-            var selectedDay = document.getElementById('selectDay').value;
-            return selectedDay;
+            var selectedDayString = document.getElementById('selectDay').value;
+            var selectedDayInt = parseInt(selectedDayString)
+            //not proud of this solution but I couldent fix it without starting the all code from the begining.
+            // the issue was that if the user chhose in dropdown the last day(30 days ago)- it was going out of range)
+            selectedDayString = ''+ (selectedDayInt - 1) 
+            return selectedDayString;
         }
 
-        // Call the function to populate the dropdown on page load or whenever needed
+        // Function to populate the dropdown
         populateDaysDropdown();
 
         // Function to populate the dropdown with the last 30 days

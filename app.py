@@ -66,6 +66,15 @@ def get_real_gas_price():
         print(f"Error parsing JSON: {json_err}")
         return None, None
 
+def get_block_number_by_time(timestamp):
+    url = f"https://api.etherscan.io/api?module=block&action=getblocknobytime&timestamp={timestamp}&closest=before&apikey={ETHERSCAN_API_KEY}"
+    response = requests.get(url).json()
+    return response['result']
+
+def get_transactions_list(address, start_block, end_block):
+    url = f"https://api.etherscan.io/api?module=account&action=txlist&address={address}&startblock={start_block}&endblock={end_block}&page=1&offset=5000&sort=asc&apikey={ETHERSCAN_API_KEY}"
+    response = requests.get(url).json()
+    return response.get('result', [])
 
 # Get transaction data and save to Elasticsearch
 def process_transactions(address, gas_price_wei, gas_price_usd):
@@ -74,7 +83,7 @@ def process_transactions(address, gas_price_wei, gas_price_usd):
     # thirty_days_ago = int((datetime.now() - timedelta(days=30)).timestamp())
     # print(f"thirty_days_ago: {thirty_days_ago}")
 
-    # Get block numbers
+    # # Get block numbers
     # url = f"https://api.etherscan.io/api?module=block&action=getblocknobytime&timestamp={now}&closest=after&apikey={ETHERSCAN_API_KEY}"
     # response_now = requests.get(url).json()
     # result_now = response_now['result']
@@ -86,11 +95,28 @@ def process_transactions(address, gas_price_wei, gas_price_usd):
     # result_30_days_ago = response_30_days_ago['result']
     # print(f"result_30_days_ago: {result_30_days_ago}")
 
+    # # Get transactions list
+    # url = f"https://api.etherscan.io/api?module=account&action=txlist&address={address}&startblock={result_30_days_ago}&endblock={result_now}&page=1&offset=5000&sort=asc&apikey={ETHERSCAN_API_KEY}"
+    # # url = f"https://api.etherscan.io/api?module=account&action=txlist&address={address}&startblock=17624712&endblock=17838644&page=1&offset=5000&sort=asc&apikey=WXAK8JUP9YUEXMTKI35IXQ62S29PRMA2WU"
+    # response_transactions = requests.get(url).json()
+    # result_transactions = response_transactions.get('result', [])
+    # print(f"result_transactions len : {len(result_transactions)}")
+
+    now = int(datetime.now().timestamp())
+    print(f"now: {now}")
+    thirty_days_ago = int((datetime.now() - timedelta(days=30)).timestamp())
+    print(f"thirty_days_ago: {thirty_days_ago}")
+
+
+    # Get block numbers
+    result_now = get_block_number_by_time(now)
+    print(f"result now: {result_now}")
+
+    result_30_days_ago = get_block_number_by_time(thirty_days_ago)
+    print(f"result_30_days_ago: {result_30_days_ago}")
+
     # Get transactions list
-    # url = f"https://api.etherscan.io/api?module=account&action=txlist&address=0xb47e3cd837dDF8e4c57F05d70Ab865de6e193BBB&startblock={result_30_days_ago}&endblock={result_now}&page=1&offset=5000&sort=asc&apikey=WXAK8JUP9YUEXMTKI35IXQ62S29PRMA2WU"
-    url = f"https://api.etherscan.io/api?module=account&action=txlist&address={address}&startblock=17624712&endblock=17838644&page=1&offset=5000&sort=asc&apikey=WXAK8JUP9YUEXMTKI35IXQ62S29PRMA2WU"
-    response_transactions = requests.get(url).json()
-    result_transactions = response_transactions.get('result', [])
+    result_transactions = get_transactions_list(address, result_30_days_ago, result_now)
     print(f"result_transactions len : {len(result_transactions)}")
 
     # Calculate gas fee for each transaction and create the data to save in Elasticsearch
