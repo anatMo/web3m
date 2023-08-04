@@ -4,54 +4,28 @@
     <title>Tools Page</title>
     <!-- Add the Highcharts CDN -->
     <script src="https://code.highcharts.com/highcharts.js"></script>
+    <link rel="stylesheet" href="../static/style.css">
 </head>
 <body>
-    <h1>Enter a contract address:</h1>
-    <form id="addressForm">
-        <input type="text" id="contractAddress" placeholder="Enter a contract address in uppercase">
-        <label for="selectDay">Select a day:</label>
-        <select id="selectDay">
-            <!-- Options for 30 days -->
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-            <option value="6">6</option>
-            <option value="7">7</option>
-            <option value="8">8</option>
-            <option value="9">9</option>
-            <option value="10">10</option>
-            <option value="11">11</option>
-            <option value="12">12</option>
-            <option value="13">13</option>
-            <option value="14">14</option>
-            <option value="15">15</option>
-            <option value="16">16</option>
-            <option value="17">17</option>
-            <option value="18">18</option>
-            <option value="19">19</option>
-            <option value="20">20</option>
-            <option value="21">21</option>
-            <option value="22">22</option>
-            <option value="23">23</option>
-            <option value="24">24</option>
-            <option value="25">25</option>
-            <option value="26">26</option>
-            <option value="27">27</option>
-            <option value="28">28</option>
-            <option value="29">29</option>
-            <option value="30">30</option>
-        </select>
-        <input type="button" value="Get Data" onclick="getInfo()">
-    </form>
+    <div class="tools-container">
+        <h1>Enter a contract address:</h1>
+        <form id="addressForm">
+            <input type="text" id="contractAddress" placeholder="Enter a contract address in uppercase">
+            <label for="selectDay">Select a day:</label>
+            <select id="selectDay">
+               <!-- The dropdown will be shown here --> 
+            </select>
+            <input type="button" value="Get Data" onclick="getInfo()">
+        </form>
+    </div>
+    
 
     <div id="chartContainer" style="display: none;">
         <!-- The chart will be shown here -->
     </div>
 
     <div id="resultContainer">
-        <!-- The results will be shown here -->
+        <!-- If results not found error message will be shown here -->
     </div>
 
     <script>
@@ -59,6 +33,25 @@
         function getSelectedDay() {
             var selectedDay = document.getElementById('selectDay').value;
             return selectedDay;
+        }
+
+        // Call the function to populate the dropdown on page load or whenever needed
+        populateDaysDropdown();
+
+        // Function to populate the dropdown with the last 30 days
+        function populateDaysDropdown() {
+            var selectDropdown = document.getElementById('selectDay');
+            selectDropdown.innerHTML = ''; // Clear existing options
+        
+            var today = new Date();
+            for (var i = 0; i < 30; i++) {
+                var date = new Date(today);
+                date.setDate(today.getDate() - i);
+                var option = document.createElement('option');
+                option.value = i + 1;
+                option.text = date.toISOString().split('T')[0];
+                selectDropdown.add(option);
+            }
         }
 
         // Function to fetch data and update the chart
@@ -95,7 +88,7 @@
                             resultHTML += '<li>Block Number: ' + item.blockNumber + ', TimeStamp: ' + item.timeStamp + ', Gas Fee (USD): ' + item.gasFeeUSD.toFixed(4) + '</li>';
                         });
                         resultHTML += '</ul>';
-                        resultContainer.innerHTML = resultHTML;
+                        // resultContainer.innerHTML = resultHTML;
 
                         // Show the chart container
                         chartContainer.style.display = 'block';
