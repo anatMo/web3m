@@ -15,7 +15,7 @@ the app uses 2 APIs from etherscan:
 2.  https://api.etherscan.io/api?module=account&action=txlist&address={contract_address}&startblock={last_30_day_block}&endblock={now_block}&sort=asc&apikey={ETHERSCAN_API_KEY}
    -> Returns transaction list of specific contract address from x block number to y block number
 
- After getting this data, the app calculates the Hourly average fas fee (USD) over 30 days and presents it in a chart using https://www.highcharts.com/demo/line-basic.
+ The data is stored in elasticsearch database and then the app calculates the Hourly average gas fee (USD) over 30 days and presents it in a chart using https://www.highcharts.com/demo/line-basic.
 
 
 * to run the app(python flask)- python app.py
